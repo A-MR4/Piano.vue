@@ -31,6 +31,7 @@ a visual, polyphonic piano keyboard that runs in the browser.
 - **Interaction events**: `mousedown`, `mouseup`, `mouseleave`, `touchstart`, `touchend` on each key call `startKey` / `stopKey`.
 - **Visual state**: `pressedVisual` (a reactive object) marks which keys show the `pressed` style. The functions `setPressedVisual` and `isPressedVisual` manage that state.
 - **Retrigger prevention**: `pressedKeyIds` (a `Set`) prevents starting the same `keyId` multiple times without releasing it first.
+![Image of the piano when keys are pressed](piano-browser/imgs/CapInter.png)
 
 ## Notes, frequencies and oscillators
 - **Note**: musical name (e.g., `A4`, `C4`) corresponds to a frequency in Hz. In the code each note has a fixed frequency (e.g., `A4 = 440.00 Hz`).

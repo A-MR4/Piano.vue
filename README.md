@@ -2,7 +2,7 @@
 
 a visual, polyphonic piano keyboard that runs in the browser.
 
-![Image of the piano in browser](.\piano-browser\imgs\CapPiano.png)
+![Image of the piano in browser](piano-browser/imgs/CapPiano.png)
 
 ## Summary
 - Renders white and black keys in a responsive interface.
@@ -13,7 +13,7 @@ a visual, polyphonic piano keyboard that runs in the browser.
 ## Audio behavior (technical summary)
 - **Audio context**: an `AudioContext` is created on demand with `ensureAudioContext()`.
 - **Voice**: each note creates an `OscillatorNode` of type `sawtooth` and a `GainNode`.
-  ![Sawtooth wave](.\piano-browser\imgs\STW.webp)
+  ![Sawtooth wave](piano-browser\imgs\STW.webp)
 - **Simplified ADSR**: the code applies a short attack and a release ramp to avoid clicks. Parameters in the code are:
   - `ATTACK = 0.005`
   - `SUSTAIN = 0.95`

@@ -18,7 +18,6 @@
         <div class="note">{{ k.name }}</div>
       </button>
 
-      <!-- teclas negras (absolutas) -->
       <button
         v-for="(k, i) in blackKeys"
         :key="k.key"
@@ -299,9 +298,6 @@ function clearPressedIdsForBase(keyChar) {
     if (id.startsWith(prefix)) pressedKeyIds.delete(id)
   }
 }
-
-/* --- Modificación mínima en startNoteForKey: forzar release por base antes de crear nueva voz --- */
-
 
 onMounted(() => {
   updateBlackPositions()

@@ -99,7 +99,6 @@ function isPressedVisual(key) {
 /* --- Estado para la coma como modificador --- */
 const commaDown = ref(false)
 
-/* --- Web Audio API: polyfonía y retrigger seguro con soporte de octava --- */
 let audioCtx = null
 const activeVoices = new Map()
 const pressedKeyIds = new Set()

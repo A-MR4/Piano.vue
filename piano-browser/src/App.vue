@@ -35,6 +35,43 @@
       </button>
     </div>
 
+    <div class="controls" aria-label="Synth controls">
+      <div class="panel-title">Synth Tone</div>
+      <div class="control-card">
+        <label for="attack">Attack</label>
+        <input id="attack" v-model.number="synthParams.attack" type="range" min="0.001" max="0.5" step="0.001" />
+        <span>{{ synthParams.attack.toFixed(3) }}s</span>
+      </div>
+
+      <div class="control-card">
+        <label for="release">Release</label>
+        <input id="release" v-model.number="synthParams.release" type="range" min="0.01" max="1" step="0.01" />
+        <span>{{ synthParams.release.toFixed(2) }}s</span>
+      </div>
+
+      <div class="control-card">
+        <label for="sustain">Sustain</label>
+        <input id="sustain" v-model.number="synthParams.sustain" type="range" min="0.01" max="1" step="0.01" />
+        <span>{{ synthParams.sustain.toFixed(2) }}</span>
+      </div>
+
+      <div class="control-card">
+        <label for="minGain">Min Gain</label>
+        <input id="minGain" v-model.number="synthParams.minGain" type="range" min="0.00001" max="0.2" step="0.00001" />
+        <span>{{ synthParams.minGain.toFixed(5) }}</span>
+      </div>
+
+      <div class="control-card">
+        <label for="waveform">Wave</label>
+        <select id="waveform" v-model="synthParams.waveform">
+          <option value="sawtooth">Saw</option>
+          <option value="sine">Sine</option>
+          <option value="square">Square</option>
+          <option value="triangle">Triangle</option>
+        </select>
+      </div>
+    </div>
+
     <p class="hint">Mantén la tecla <strong>, </strong>(coma) para una octava abajo, <strong>Shift</strong> para una octava arriba.</p>
   </div>
 </template>
@@ -109,31 +146,34 @@ function ensureAudioContext() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
 }
 
-const ATTACK = 0.005
-const RELEASE = 0.12
-const SUSTAIN = 0.95
-const MIN_GAIN = 0.0001
+const synthParams = reactive({
+  attack: 0.005,
+  release: 0.12,
+  sustain: 0.95,
+  minGain: 0.0001,
+  waveform: 'sawtooth'
+})
 
 function createVoice(freq) {
   const now = audioCtx.currentTime
   const osc = audioCtx.createOscillator()
   const gain = audioCtx.createGain()
-  osc.type = 'sawtooth'
+  osc.type = synthParams.waveform
   osc.frequency.value = freq
-  gain.gain.setValueAtTime(MIN_GAIN, now)
-  gain.gain.linearRampToValueAtTime(SUSTAIN, now + ATTACK)
+  gain.gain.setValueAtTime(synthParams.minGain, now)
+  gain.gain.linearRampToValueAtTime(synthParams.sustain, now + synthParams.attack)
   osc.connect(gain)
   gain.connect(audioCtx.destination)
   osc.start(now)
   return {
     osc, gain,
-    release: (releaseTime = RELEASE) => {
+    release: (releaseTime = synthParams.release) => {
       const t = audioCtx.currentTime
       try {
         gain.gain.cancelScheduledValues(t)
-        const current = Math.max(gain.gain.value || MIN_GAIN, MIN_GAIN)
+        const current = Math.max(gain.gain.value || synthParams.minGain, synthParams.minGain)
         gain.gain.setValueAtTime(current, t)
-        gain.gain.exponentialRampToValueAtTime(MIN_GAIN, t + Math.max(0.01, releaseTime))
+        gain.gain.exponentialRampToValueAtTime(synthParams.minGain, t + Math.max(0.01, releaseTime))
         osc.stop(t + Math.max(0.01, releaseTime) + 0.02)
       } catch (e) {}
     }
@@ -167,10 +207,10 @@ function forceReleaseAndRemove(keyId) {
   for (const v of arr) {
     try {
       v.gain.gain.cancelScheduledValues(now)
-      const current = Math.max(v.gain.gain.value || MIN_GAIN, MIN_GAIN)
+      const current = Math.max(v.gain.gain.value || synthParams.minGain, synthParams.minGain)
       v.gain.gain.setValueAtTime(current, now)
-      v.gain.gain.exponentialRampToValueAtTime(MIN_GAIN, now + 0.02)
-      v.osc.stop(now + 0.03)
+      v.gain.gain.exponentialRampToValueAtTime(synthParams.minGain, now + Math.max(0.01, synthParams.release))
+      v.osc.stop(now + Math.max(0.02, synthParams.release + 0.01))
     } catch (e) {}
   }
   activeVoices.delete(keyId)
@@ -182,7 +222,6 @@ function startNoteForKey(keyChar, comma = false, shift = false) {
   if (!freq) return
   ensureAudioContext()
   forceReleaseAndRemoveByBase(keyChar)
-  clearPressedIdsForBase(keyChar)
 
   const keyId = makeKeyId(keyChar, comma, shift)
   const voice = createVoice(freq)
@@ -206,7 +245,7 @@ function stopNoteForKey(keyChar, comma = false, shift = false) {
   const keyId = makeKeyId(keyChar, comma, shift)
   const list = activeVoices.get(keyId)
   if (!list) return
-  for (const v of list) v.release(RELEASE)
+  for (const v of list) v.release(synthParams.release)
 }
 
 /* Wrappers: manejan pressedKeyIds y estado visual */
@@ -243,6 +282,11 @@ function handleKeyDown(e) {
   if (e.key === 'Shift') {
     shiftDown.value = true
     syncHeldNotesWithModifiers()
+    return
+  }
+
+  if (e.repeat) {
+    e.preventDefault()
     return
   }
 
@@ -298,10 +342,10 @@ function forceReleaseAndRemoveByBase(keyChar) {
       for (const v of arr) {
         try {
           v.gain.gain.cancelScheduledValues(now)
-          const current = Math.max(v.gain.gain.value || MIN_GAIN, MIN_GAIN)
+          const current = Math.max(v.gain.gain.value || synthParams.minGain, synthParams.minGain)
           v.gain.gain.setValueAtTime(current, now)
-          v.gain.gain.exponentialRampToValueAtTime(MIN_GAIN, now + 0.02)
-          v.osc.stop(now + 0.03)
+          v.gain.gain.exponentialRampToValueAtTime(synthParams.minGain, now + Math.max(0.01, synthParams.release))
+          v.osc.stop(now + Math.max(0.02, synthParams.release + 0.01))
         } catch (e) {}
       }
       activeVoices.delete(keyId)
@@ -315,7 +359,6 @@ function clearPressedIdsForBase(keyChar) {
   for (const id of Array.from(pressedKeyIds)) {
     if (id.startsWith(prefix)) pressedKeyIds.delete(id)
   }
-  activeBaseStates.delete(keyChar)
 }
 
 function getActiveStateForKey(keyChar, comma = false, shift = false) {
@@ -420,5 +463,76 @@ onUnmounted(() => {
 /* etiquetas */
 .label { font-weight: 700; font-size: 12px; pointer-events: none; }
 .note { font-size: 11px; opacity: 0.85; pointer-events: none; }
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 14px auto 10px;
+  max-width: 780px;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #181818, #0f0f0f);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 30px rgba(0,0,0,0.35);
+}
+.panel-title {
+  grid-column: 1 / -1;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #fbbf24;
+  margin-bottom: 2px;
+}
+.control-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-size: 12px;
+  color: #f5f5f5;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #272727, #1a1a1a);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.control-card label {
+  font-weight: 700;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+.control-card input[type="range"] {
+  width: 100%;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4b5563, #111827);
+  outline: none;
+}
+.control-card input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff, #d1d5db 30%, #4b5563 80%);
+  border: 2px solid #111827;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.control-card select {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: #111827;
+  color: #f5f5f5;
+}
+.control-card span {
+  font-size: 11px;
+  color: #cbd5e1;
+}
 .hint { margin-top: 10px; color: #727272; font-size: 16px; }
 </style>

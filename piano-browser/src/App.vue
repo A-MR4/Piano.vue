@@ -96,12 +96,14 @@ function isPressedVisual(key) {
   return !!pressedVisual[key]
 }
 
-/* --- Estado para la coma como modificador --- */
+/* --- Estado para los modificadores de octava --- */
 const commaDown = ref(false)
+const shiftDown = ref(false)
 
 let audioCtx = null
 const activeVoices = new Map()
 const pressedKeyIds = new Set()
+const activeBaseStates = new Map()
 
 function ensureAudioContext() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
@@ -214,53 +216,70 @@ function startKey(keyChar, comma = false, shift = false) {
   const keyId = makeKeyId(keyChar, comma, shift)
   if (pressedKeyIds.has(keyId)) return
   pressedKeyIds.add(keyId)
+  activeBaseStates.set(keyChar, { keyId, comma, shift })
   // marcar visualmente
   setPressedVisual(keyChar, true)
   startNoteForKey(keyChar, comma, shift)
 }
 
 function stopKey(keyChar, comma = false, shift = false) {
-  const keyId = makeKeyId(keyChar, comma, shift)
-  if (pressedKeyIds.has(keyId)) pressedKeyIds.delete(keyId)
+  const state = getActiveStateForKey(keyChar, comma, shift)
+  if (pressedKeyIds.has(state.keyId)) pressedKeyIds.delete(state.keyId)
+  activeBaseStates.delete(keyChar)
   // quitar visual
   setPressedVisual(keyChar, false)
-  stopNoteForKey(keyChar, comma, shift)
+  stopNoteForKey(keyChar, state.comma, state.shift)
 }
 
 /* --- Manejo de teclado físico: coma como modificador--- */
 function handleKeyDown(e) {
-  // coma como modificador
   if (e.key === ',') {
     commaDown.value = true
+    syncHeldNotesWithModifiers()
     e.preventDefault()
+    return
+  }
+
+  if (e.key === 'Shift') {
+    shiftDown.value = true
+    syncHeldNotesWithModifiers()
     return
   }
 
   const k = e.key.toLowerCase()
   if (!findBaseMapping(k)) return
   e.preventDefault()
-  startKey(k, commaDown.value, e.shiftKey)
+  startKey(k, commaDown.value, shiftDown.value || e.shiftKey)
 }
 
 function handleKeyUp(e) {
   if (e.key === ',') {
     commaDown.value = false
+    syncHeldNotesWithModifiers()
     setPressedVisual(',', false)
     e.preventDefault()
+    return
+  }
+
+  if (e.key === 'Shift') {
+    shiftDown.value = false
+    syncHeldNotesWithModifiers()
     return
   }
 
   const k = e.key.toLowerCase()
   if (!findBaseMapping(k)) return
   e.preventDefault()
-  stopKey(k, commaDown.value, e.shiftKey)
+  stopKey(k, commaDown.value, shiftDown.value || e.shiftKey)
 }
 
 /* visibilidad y montaje */
 function handleVisibilityChange() {
   if (document.hidden) {
     pressedKeyIds.clear()
+    activeBaseStates.clear()
     commaDown.value = false
+    shiftDown.value = false
     // limpiar visuales
     for (const k in pressedVisual) delete pressedVisual[k]
     for (const k of Array.from(activeVoices.keys())) forceReleaseAndRemove(k)
@@ -295,6 +314,30 @@ function clearPressedIdsForBase(keyChar) {
   const prefix = `${keyChar}|`
   for (const id of Array.from(pressedKeyIds)) {
     if (id.startsWith(prefix)) pressedKeyIds.delete(id)
+  }
+  activeBaseStates.delete(keyChar)
+}
+
+function getActiveStateForKey(keyChar, comma = false, shift = false) {
+  const existing = activeBaseStates.get(keyChar)
+  if (existing) return existing
+  const keyId = makeKeyId(keyChar, comma, shift)
+  return { keyId, comma, shift }
+}
+
+function syncHeldNotesWithModifiers() {
+  for (const [baseKey, currentState] of Array.from(activeBaseStates.entries())) {
+    const targetKeyId = makeKeyId(baseKey, commaDown.value, shiftDown.value)
+    if (currentState.keyId === targetKeyId) continue
+
+    pressedKeyIds.delete(currentState.keyId)
+    stopNoteForKey(baseKey, currentState.comma, currentState.shift)
+    setPressedVisual(baseKey, true)
+
+    const nextState = { keyId: targetKeyId, comma: commaDown.value, shift: shiftDown.value }
+    activeBaseStates.set(baseKey, nextState)
+    pressedKeyIds.add(targetKeyId)
+    startNoteForKey(baseKey, commaDown.value, shiftDown.value)
   }
 }
 
